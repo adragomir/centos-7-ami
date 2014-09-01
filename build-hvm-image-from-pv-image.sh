@@ -11,7 +11,7 @@ uuid=$(/sbin/blkid -o value -s UUID /dev/xvda1)
 make_fstab $location/tmp/fstab
 make_grub_conf $location/tmp/grub.conf "(hd0,0)" "ttyS0" $uuid
 
-bundle_vol 3500 $location $name "ami=sda,root=/dev/sda1" "mbr"
+bundle_vol 3500 $location $name "${block_device_mapping}" "mbr" $location/tmp/fstab $location/tmp/grub.conf
 # fuck instance afterward
 
 upload_bundle $location/out/$name.manifest.xml $s3_location

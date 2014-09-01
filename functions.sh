@@ -86,9 +86,10 @@ EOF
 }
 
 function prepare_mount_image_partitioned {
-  image=$1
+  local image=$1
+  local size=$2
   export loop=$(losetup -f)
-  losetup $loop $location/out/$name
+  losetup $loop $image
   export dmsize=$(($size * 1024 * 1024 / 512))
   export loopname=$(basename $loop)
   export majmin=$(cat /sys/block/$loopname/dev)
@@ -103,11 +104,38 @@ function finish_unmount_image_partitioned {
 }
 
 function make_fstab {
-  loc=$1
-  uuid=$(/sbin/blkid -o value -s UUID $current_root)
+  local loc=$1
+  local def=$2
+  local uuid=$(/sbin/blkid -o value -s UUID $current_root)
   cat > $loc <<EOF
 UUID=$uuid /         xfs    defaults,noatime 1 1
 EOF
+  if [ "${def}" == "defaults"]
+  then
+  cat >> $loc <<EOF
+none /dev/pts devpts gid=5,mode=620 0 0
+none /dev/shm tmpfs defaults 0 0
+none /proc proc defaults 0 0
+none /sys sysfs defaults 0 0
+EOF
+  fi
+}
+
+function make_fstab_label {
+  local loc=$1
+  local uuid=$(/sbin/blkid -o value -s UUID $current_root)
+  cat > $loc <<EOF
+LABEL=/ /         xfs    defaults,noatime 1 1
+EOF
+  if [ "${def}" == "defaults"]
+  then
+  cat >> $loc <<EOF
+none /dev/pts devpts gid=5,mode=620 0 0
+none /dev/shm tmpfs defaults 0 0
+none /proc proc defaults 0 0
+none /sys sysfs defaults 0 0
+EOF
+  fi
 }
 
 function make_sysconfig_network {
@@ -139,32 +167,51 @@ PermitRootLogin without-password
 EOF
 }
 
-function make_grub_conf {
-  loc=$1
-  root=$2
-  console=$3
-  uuid=$4
-  kernelver=$(rpm -qa | grep '^kernel-3'  | sed -e 's/kernel-//' | head -n 1)
+function make_grub_conf_label {
+  local loc=$1
+  local root=$2
+  local console=$3
+  local uuid=$4
+  local kernelver=$(rpm -qa | grep '^kernel-3'  | sed -e 's/kernel-//' | head -n 1)
   cat > $loc <<EOF
 default=0
-timeout=hiddenmenu0
+timeout=0
+hiddenmenu
 
 title CentOS Linux ($kernelver) 7 (Core)
 	root $root
-	kernel /boot/vmlinuz-$kernelver ro root=UUID=$uuid console=$console LANG=en_US.UTF-8 loglvl=all sync_console console_to_ring earlyprintk=xen xen_emul_unplug=unnecessary
+	kernel /boot/vmlinuz-$kernelver ro root=LABEL=/ console=$console LANG=en_US.UTF-8 loglvl=all sync_console console_to_ring earlyprintk=xen xen_emul_unplug=unnecessary xen_pv_hvm=enable
+	initrd /boot/initramfs-$kernelver.img
+EOF
+}
+
+function make_grub_conf {
+  local loc=$1
+  local root=$2
+  local console=$3
+  local uuid=$4
+  local kernelver=$(rpm -qa | grep '^kernel-3'  | sed -e 's/kernel-//' | head -n 1)
+  cat > $loc <<EOF
+default=0
+timeout=0
+hiddenmenu
+
+title CentOS Linux ($kernelver) 7 (Core)
+	root $root
+	kernel /boot/vmlinuz-$kernelver ro root=UUID=$uuid console=$console LANG=en_US.UTF-8 loglvl=all sync_console console_to_ring earlyprintk=xen xen_emul_unplug=unnecessary xen_pv_hvm=enable
 	initrd /boot/initramfs-$kernelver.img
 EOF
 }
 
 function make_image_grub_conf {
-  grub_dir=$1
+  local grub_dir=$1
   ln -s /boot/grub/grub.conf $grub_dir/menu.lst
 }
 
 function make_mbr_image {
-  image=$1
-  size=$2
-  uuid=$3
+  local image=$1
+  local size=$2
+  local uuid=$3
   dd if=/dev/zero status=noxfer of=$image bs=1M count=1 seek=$(($size - 1))
 
   # make an MBR/msdos partition
@@ -185,14 +232,14 @@ function make_mbr_image {
 }
 
 function prepare_dirs {
-  loc=$1
+  local loc=$1
   mkdir -p $loc $loc/mnt $loc/tmp $loc/out
 }
 
 function make_raw_image {
-  image=$1
-  size=$2
-  uuid=$3
+  local image=$1
+  local size=$2
+  local uuid=$3
   dd if=/dev/zero status=noxfer of=$image bs=1M count=1 seek=$size
   /sbin/mkfs.xfs $image
   /usr/sbin/xfs_admin -U $uuid $image
@@ -200,7 +247,7 @@ function make_raw_image {
 }
 
 function prepare_chroot {
-  mount_point=$1
+  local mount_point=$1
   mkdir -p $mount_point/{dev,etc,proc,sys}
   mkdir -p $mount_point/var/{cache,log,lock,lib/rpm}
   /sbin/MAKEDEV -d $mount_point/dev -x console
@@ -216,8 +263,8 @@ function prepare_chroot {
 }
 
 function install_packages_in_chroot {
-  image_root=$1
-  chroot=$2
+  local image_root=$1
+  local chroot=$2
   cat > $image_root/yum-xen.conf <<EOF
 [base]
 name=CentOS-7 - Base
@@ -304,18 +351,18 @@ yum -c $image_root/yum-xen.conf --installroot=$chroot -y install dhclient grub e
 }
 
 function mount_partitioned_image {
-  mount_point=$1
+  local mount_point=$1
   mount -t xfs -o nouuid /dev/mapper/hda1 $mount_point
 }
 
 function mount_raw_image {
-  image=$1
-  mount_point=$2
+  local image=$1
+  local mount_point=$2
   mount -t xfs -o nouuid $image $mount_point
 }
 
 function install_grub {
-  chroot=$1
+  local chroot=$1
   # Install Grub. This might throw errors, just run it another time
   cat > $chroot/boot/grub/device.map <<EOF
   (hd0) /dev/mapper/hda
@@ -331,7 +378,7 @@ EOF
 }
 
 function unmount_image {
-  mount_point=$1
+  local mount_point=$1
   umount -d $mount_point/sys
   umount -d $mount_point/proc
   umount -d $mount_point/dev/shm
@@ -341,19 +388,39 @@ function unmount_image {
 }
 
 function bundle_vol {
-  size=$1
-  out=$2
-  name=$3
-  block_device_mapping=$4
-  partition=$5
+  local size=$1
+  local out=$2
+  local name=$3
+  local block_device_map=$4
+  local partition=$5
+  local fstab=$6
+  local grub_conf=$7
+
+  local map_param=""
+  if [ "${block_device_map}" != "" ]
+  then
+    map_param="--block-device-mapping $block_device_map"
+  fi
+
+  local grub_param=""
+  if [ "${grub_conf}" != "" ]
+  then
+    grub_param="--grub-config $grub_conf"
+  fi
+
+  local fstab_param=""
+  if [ "${fstab}" != "" ]
+  then
+    fstab_param="--fstab $fstab"
+  fi
   RUBYLIB=/usr/lib/ruby/site_ruby/ ec2-bundle-vol \
     -d $out/out \
-    --block-device-mapping $block_device_mapping \
+    $map_param \
     -p $name \
     -s 3500 \
     --partition $partition \
-    --fstab $out/tmp/fstab \
-    --grub-config $out/tmp/grub.conf \
+    $fstab_param \
+    $grub_param \
     -e /mnt,/opt \
     --no-filter \
     --no-inherit \
@@ -365,12 +432,13 @@ function bundle_vol {
 }
 
 function bundle_image {
-  image=$1
-  prefix=$2
-  destination=$3
-  block_device_mapping=$4
+  local image=$1
+  local prefix=$2
+  local destination=$3
+  local block_device_mapping=$4
   if [ "${block_device_mapping}" == "" ]
   then
+    echo "packaging without block-device-mapping"
     RUBYLIB=/usr/lib/ruby/site_ruby/ ec2-bundle-image --privatekey $private_key --cert $certificate --user $aws_user --image $location/out/$name --prefix $name --destination $location/out --arch x86_64
   else
     RUBYLIB=/usr/lib/ruby/site_ruby/ ec2-bundle-image --privatekey $private_key --cert $certificate --user $aws_user --image $location/out/$name --prefix $name --destination $location/out --arch x86_64 --block-device-mapping $block_device_mapping
@@ -378,20 +446,18 @@ function bundle_image {
 }
 
 function upload_bundle {
-  image_manifest=$1
-  dest=$2
+  local image_manifest=$1
+  local dest=$2
   RUBYLIB=/usr/lib/ruby/site_ruby/ ec2-upload-bundle --bucket $dest --manifest $image_manifest --access-key $access_key --secret-key $secret_key --retry --region $region
 }
 
 function register_image {
-  ami_type=$1
+  local ami_type=$1
   shift
-  s3=$1
+  local s3=$1
   shift
-  name=$1
+  local name=$1
   shift
-  echo "AAAAAAAAAAAAAAAAA"
-  echo $ami_type
   if [ $ami_type == "paravirtual" ]
   then
     aws ec2 register-image --image-location $s3_location/$name.manifest.xml --name $name --region $region --architecture x86_64 --kernel $aki --virtualization-type pv $*
