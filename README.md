@@ -34,10 +34,21 @@ You need
 * Access to AWS (keypairs, secret / access key)
 * A centos 7 machine (Virtualbox, VMWare, bare metal, doesn't matter)
 * An X.509 cert / private key
-* Login to the machine
-* Configure the script with the necessary variables. 
-* Run the script. Very little testing was needed, so you might be better off copying the commands and checking for errors. Problematic steps are grub installation. 
 
+## Creating a PV Raw image
+
+* Login to a Centos 7 VM (Virtualbox, etc)
+* Edit config_aws, config_pv_raw with the necessary parameters
+* `source {functions.sh,config_aws,config_pv_raw`
+* `bash build-image.sh`. Run the script. Very little testing was needed, so you might be better off copying the commands and checking for errors. Problematic steps are grub installation. 
+
+## Creating a HVM Image
+
+* First, create a PV image
+* Boot an AWS machine with the PV image (don't know if necessary, but this is how I got it working)
+* Login to the machine, checkout the code
+* `source {functions.sh,config_aws,config_hvm_mbr`
+* `bash build-hvm-image-from-pv-image`. Run the script. Very little testing was needed, so you might be better off copying the commands and checking for errors. Problematic steps are grub installation. 
 
 ## Inspiration / help
 
