@@ -6,59 +6,77 @@ function install_tooling {
   setenforce Permissive
   yum install -y gdisk patch curl wget ruby unzip vim
   # ec2-ami-tools
-  curl -O http://s3.amazonaws.com/ec2-downloads/ec2-ami-tools-1.5.3.noarch.rpm
-  rpm -ivh ec2-ami-tools-1.5.3.noarch.rpm
+  if [ ! -f ec2-ami-tools-1.5.3.noarch.rpm ];
+  then
+    curl -O http://s3.amazonaws.com/ec2-downloads/ec2-ami-tools-1.5.3.noarch.rpm
+    rpm -ivh ec2-ami-tools-1.5.3.noarch.rpm
+  fi
 
   # ec2-api-tools
-  wget http://s3.amazonaws.com/ec2-downloads/ec2-api-tools.zip
-  unzip ec2-api-tools.zip
+  if [ ! -f ec2-api-tools.zip ];
+  then 
+    wget http://s3.amazonaws.com/ec2-downloads/ec2-api-tools.zip
+    unzip ec2-api-tools.zip
+  fi
 
   # MAKEDEV package from centos 6, no longer available in 7. TODO: make it work with mknod
-  wget http://mirror.centos.org/centos/6/os/x86_64/Packages/MAKEDEV-3.24-6.el6.x86_64.rpm
-  rpm -ivh MAKEDEV-3.24-6.el6.x86_64.rpm
+  if [ ! -f MAKEDEV-3.24-6.el6.x86_64.rpm ];
+  then 
+    wget http://mirror.centos.org/centos/6/os/x86_64/Packages/MAKEDEV-3.24-6.el6.x86_64.rpm
+    rpm -ivh MAKEDEV-3.24-6.el6.x86_64.rpm
+  fi
 
   # awscli
-  wget https://bootstrap.pypa.io/get-pip.py
-  python get-pip.py
-  pip install awscli
+  if [ ! -f get-pip.py ];
+  then
+    wget https://bootstrap.pypa.io/get-pip.py
+    python get-pip.py
+    pip install awscli
+  fi
 
   # Java for amazon ec2-ami-tools, ec2-api-tools
-  wget --no-cookies --no-check-certificate --header "Cookie: gpw_e24=http%3A%2F%2Fwww.oracle.com%2F; oraclelicense=accept-securebackup-cookie" "http://download.oracle.com/otn-pub/java/jdk/7u67-b01/jdk-7u67-linux-x64.rpm"
-  rpm -ivh jdk-7u67-linux-x64.rpm
+  if [ ! -f jdk-7u67-linux-x64.rpm ];
+  then
+    wget --no-cookies --no-check-certificate --header "Cookie: gpw_e24=http%3A%2F%2Fwww.oracle.com%2F; oraclelicense=accept-securebackup-cookie" "http://download.oracle.com/otn-pub/java/jdk/7u67-b01/jdk-7u67-linux-x64.rpm"
+    rpm -ivh jdk-7u67-linux-x64.rpm
+  fi
 
   # Grub Legacy for PV-grub compatibility
-  wget http://mirror.centos.org/centos/6/os/x86_64/Packages/grub-0.97-83.el6.x86_64.rpm
-  mkdir -p grub
-  rm -rf grub/*
-  pushd grub && rpm2cpio ../grub-0.97-83.el6.x86_64.rpm | cpio -idmv && popd
-  cp -a grub/sbin/* /sbin/
-  cp -a grub/usr/* /usr/
+  if [ ! -f grub-0.97-83.el6.x86 ];
+  then
+    wget http://mirror.centos.org/centos/6/os/x86_64/Packages/grub-0.97-83.el6.x86_64.rpm
+    mkdir -p grub
+    rm -rf grub/*
+    pushd grub && rpm2cpio ../grub-0.97-83.el6.x86_64.rpm | cpio -idmv && popd
+    cp -a grub/sbin/* /sbin/
+    cp -a grub/usr/* /usr/
+  fi
 
   cat > image.rb.patch <<EOF
---- image.rb	2014-04-30 11:45:54.000000000 +0300
-+++ image.rb	2014-08-31 18:59:26.000000000 +0300
+--- /usr/lib/ruby/site_ruby/ec2/platform/linux/image.rb.backup	2014-09-02 06:39:55.701064999 +0000
++++ /usr/lib/ruby/site_ruby/ec2/platform/linux/image.rb	2014-09-02 06:41:34.536401184 +0000
 @@ -382,7 +382,7 @@
-          info = fsinfo( root )
-          label= info[:label]
-          uuid = info[:uuid]
+           info = fsinfo( root )
+           label= info[:label]
+           uuid = info[:uuid]
 -          type = info[:type] || 'ext3'
 +          type = info[:type] || 'xfs'
-          execute('modprobe loop') unless File.blockdev?('/dev/loop0')
-
-          target = nil
+           execute('modprobe loop') unless File.blockdev?('/dev/loop0')
+ 
+           target = nil
 @@ -648,7 +648,7 @@
-          raise FatalError.new("image already mounted") if mounted?(IMG_MNT)
-          dirs = ['mnt', 'proc', 'sys', 'dev']
-          if self.is_disk_image?
+           raise FatalError.new("image already mounted") if mounted?(IMG_MNT)
+           dirs = ['mnt', 'proc', 'sys', 'dev']
+           if self.is_disk_image?
 -            execute( 'mount -t %s %s %s' % [@fstype, @target, IMG_MNT] )
 +            execute( 'mount -t %s -o nouuid %s %s' % [@fstype, @target, IMG_MNT] )
-            dirs.each{|dir| FileUtils.mkdir_p( '%s/%s' % [IMG_MNT, dir])}
-            make_special_devices
-            execute( 'mount -o bind /proc %s/proc' % IMG_MNT )
+             dirs.each{|dir| FileUtils.mkdir_p( '%s/%s' % [IMG_MNT, dir])}
+             make_special_devices
+             execute( 'mount -o bind /proc %s/proc' % IMG_MNT )
 @@ -741,8 +741,12 @@
-            fstab_content = make_fstab
-            File.open( fstab, 'w' ) { |f| f.write( fstab_content ) }
-            puts "/etc/fstab:"
+             fstab_content = make_fstab
+             File.open( fstab, 'w' ) { |f| f.write( fstab_content ) }
+             puts "/etc/fstab:"
 -            fstab_content.each do |s|
 -              puts "\t #{s}"
 +            if fstab_content.kind_of?(Array)
@@ -66,16 +84,16 @@ function install_tooling {
 +                puts "\t #{s}"
 +              end
 +            else
-+              puts "\t ${fstab_content}"
-            end
-          end
-        end
++              puts "\t #{fstab_content}"
+             end
+           end
+         end
 EOF
 
   patch -p0 /usr/lib/ruby/site_ruby/ec2/platform/linux/image.rb < image.rb.patch
 
 mkdir -p $HOME/.aws
-cat $HOME/.aws/config <<EOF
+cat > $HOME/.aws/config <<EOF
 [default]
 output = json
 region = eu-west-1
@@ -105,16 +123,25 @@ function finish_unmount_image_partitioned {
 
 function make_fstab {
   local loc=$1
-  local def=$2
-  local uuid=$(/sbin/blkid -o value -s UUID $current_root)
-  cat > $loc <<EOF
+  local defaults=$2
+  local method=$3
+  if [ "${method}" == "uuid" ];
+  then
+    local uuid=$(/sbin/blkid -o value -s UUID $current_root)
+    cat > $loc <<EOF
 UUID=$uuid /         xfs    defaults,noatime 1 1
 EOF
-  if [ "${def}" == "defaults"]
+  elif [ "${method}" == "simple" ];
+  then
+    cat > $loc <<EOF
+/dev/sda1 /     ext3    defaults 1 1
+EOF
+  fi
+
+  if [ "${defaults}" == "true" ]
   then
   cat >> $loc <<EOF
 none /dev/pts devpts gid=5,mode=620 0 0
-none /dev/shm tmpfs defaults 0 0
 none /proc proc defaults 0 0
 none /sys sysfs defaults 0 0
 EOF
@@ -253,6 +280,7 @@ function prepare_chroot {
   /sbin/MAKEDEV -d $mount_point/dev -x console
   /sbin/MAKEDEV -d $mount_point/dev -x null
   /sbin/MAKEDEV -d $mount_point/dev -x zero
+  /sbin/MAKEDEV -d $mount_point/dev -x tty
   /sbin/MAKEDEV -d $mount_point/dev -x urandom
   ln -s null $mount_point/dev/X0R
   mount -o bind /dev $mount_point/dev
@@ -260,6 +288,20 @@ function prepare_chroot {
   mount -o bind /dev/shm $mount_point/dev/shm
   mount -o bind /proc $mount_point/proc
   mount -o bind /sys $mount_point/sys
+}
+
+function copy_root_to_chroot {
+  chroot=$1
+  rsync -rlpgoD -t -r -S -l \
+  --exclude '/dev' \
+  --exclude '/proc' \
+  --exclude '/media' \
+  --exclude '/root/*' \
+  --exclude '/mnt' \
+  --exclude '/sys' \
+  --exclude '/opt' \
+  --exclude '/mnt/img-mnt' \
+  -X /* $location/mnt/ 2>&1 > /dev/null
 }
 
 function install_packages_in_chroot {
@@ -371,10 +413,12 @@ EOF
   then
     ln -s /proc/mounts $chroot/etc/mtab
   fi
+  chroot $chroot dracut --force --add-drivers "ixgbevf virtio"
   ln -s ./hda1 ${chroot}/dev/mapper/hdap1
   cp -a /usr/share/grub/x86_64-redhat/stage{1,2} $chroot/boot/grub/
   cp -a /usr/share/grub/x86_64-redhat/*_stage1_5 $chroot/boot/grub/
   setarch x86_64 chroot $chroot env -i echo -e "device (hd0) /dev/mapper/hda\nroot (hd0,0)\nsetup (hd0)" | grub --device-map=/dev/null --batch
+  ln -s /boot/grub/grub.conf $chroot/boot/grub/menu.lst
 }
 
 function unmount_image {
@@ -409,7 +453,10 @@ function bundle_vol {
   fi
 
   local fstab_param=""
-  if [ "${fstab}" != "" ]
+  if [ "${fstab}" == "GENERATE" ]
+  then
+    fstab_param="--generate-fstab"
+  elif [ "${fstab}" != "" ]
   then
     fstab_param="--fstab $fstab"
   fi
@@ -421,7 +468,7 @@ function bundle_vol {
     --partition $partition \
     $fstab_param \
     $grub_param \
-    -e /mnt,/opt \
+    -e /mnt,/opt,/root \
     --no-filter \
     --no-inherit \
     --debug \

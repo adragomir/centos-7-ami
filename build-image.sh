@@ -27,7 +27,7 @@ prepare_chroot $location/mnt
 install_packages_in_chroot $location $location/mnt
 
 # minimal fstab
-make_fstab $location/mnt/etc/fstab 
+make_fstab $location/mnt/etc/fstab "false" "uuid"
 # networking
 make_sysconfig_network  $location/mnt/etc/sysconfig/network 
 make_sysconfig_network_script  $location/mnt/etc/sysconfig/network-scripts/ifcfg-eth0
