@@ -1,0 +1,8 @@
+name=centos7_hvm_mbr
+size=3500
+
+s3_location=bucket/centos7_hvm_mbr
+location=/mnt/ec2/centos7_hvm_mbr
+current_root=/dev/xvda1
+block_device_mapping=""
+mode=partitioned # or partitioned
