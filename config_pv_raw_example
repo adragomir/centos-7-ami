@@ -1,9 +1,0 @@
-#image
-name=centos7_pv_raw
-size=3500 #MB
-
-s3_location=bucket/centos7_pv_raw
-location=/mnt/ec2/centos7_pv_raw
-current_root=/dev/xvda1
-block_device_mapping=
-mode=raw # or partitioned
